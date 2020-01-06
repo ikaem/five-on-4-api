@@ -22,6 +22,10 @@ app.get("/match/:id", (req, res) => {
         res.json({data: {}, message: "no such match"})
     }
 })
+app.put("/something", (req, res) => {
+    console.log("karlo");
+    res.json("karlo");
+})
 // put update match:id
 app.put("/updatematch/:id", (req, res) => {
 
@@ -78,12 +82,12 @@ app.post("/login", (req, res) => {
 
 })
 // get joined matches
-app.get("/joinedmatches/:id", (req, res) => {
-    const { id } = req.params;
-    console.log(id);
+app.get("/joinedmatches/:userid", (req, res) => {
+    const { userid } = req.params;
+    console.log("tis null?", userid);
     const joined_matches = matches.filter(match => {
         return match.users_signed_up.some(user => {
-            return Number(user) === Number(id);
+            return Number(user) === Number(userid);
         })
     })
     if(joined_matches){
@@ -93,10 +97,92 @@ app.get("/joinedmatches/:id", (req, res) => {
         res.json({data: {}, message: "there was a problem accessing user's matches. Please log out and try logging in again."})
     }
 })
-// put join match
+// put join match - #32
+app.put("/joinmatch/:matchid", (req, res) => {
+    console.log(req.body);
+// find the match with matchid
+    // for each works? this will change anyway when have actual database
+    const { matchid } = req.params;
+    const { user_id } = req.body;
+    let joined_match = false;
+    // looping over all matches to find a match that matches the match the user wants to join
+    matches.forEach(match => {
+        if(Number(match.match_id) === Number(matchid)){
+            // adding user to the match signup array
+/*                 match.users_signed_up.push(user_id);
+            joined_match = true; */
+            // add player to the match only if they are not already joined // to be added later properly
+            // this is a bit workaround where joined_match is always set to true in both cases, and message sent to front end implies they were just added to the match, when they could have been already added from before
+            if(!match.users_signed_up.some(user => {
+                return Number(user) === Number(user_id)
+            })){
+                match.users_signed_up.push(user_id);
+                joined_match = true;
+            }
+            else{
+                joined_match = true;
+                console.log("player was already signed in");
+            }
+        }
+    })
+    if(joined_match){
+        res.json({data: matches, message: "the match joined successfully"})
+    }
+    else{
+        res.json({data: {}, message: "no such match"})
+    }
+// get its signeup users array
+// add to array the user's id
+})
 // put unjoin match
+app.delete("/unjoinmatch/:matchid", (req, res) => {
+    console.log(req.body);
+// find the match with matchid
+    // for each works? this will change anyway when have actual database
+    const { matchid } = req.params;
+    const { user_id } = req.body;
+    console.log("user_id:", user_id);
+    let unjoined_match = false;
+    // looping over all matches to find a match that matches the match the user wants to unjoin
+    matches.forEach(match => {
+        if(Number(match.match_id) === Number(matchid)){
+            console.log("match.match_id:", match.match_id);
+            console.log("match.users_signed_up:", match.users_signed_up);
+            // make sure the user is signedup for the particular match
+/*             console.log(match.users_signed_up.some(user => {
+                return Number(user) === Number(user_id)
+            })) */
+            if(match.users_signed_up.some(user => {
+                return Number(user) === Number(user_id)
+            })){
+                console.log("1.", match.users_signed_up);
+                // find index of the user's id in the match's signup array, and remove the users's id
+                match.users_signed_up.splice(match.users_signed_up.indexOf(user_id), 1);
+                unjoined_match = true;
+                console.log("2.", match.users_signed_up);
+
+            }
+            else{
+                unjoined_match = true;
+                console.log("the player was not signed in anyway")
+            }
+        }
+    })
+    if(unjoined_match){
+        res.json({data: matches, message: "the match unjoined successfully"})
+    }
+    else{
+        res.json({data: {}, message: "no such match"})
+    }
+})
 // delete match
 // post register
+// get weather 
+app.get("/getweather", (req, res) => {
+    fetch("https://api.darksky.net/forecast/7e5a6c3357123c8400c93c56caa83743/44.868447,13.850852,1578336167")
+    .then(response => response.json())
+    .then(response => res.json(response));
+})
 
 
 app.listen(4000, () => {
