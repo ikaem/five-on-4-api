@@ -1,11 +1,15 @@
 const express = require("express");
 const { matches, users } = require("./database");
 const cors = require("cors");
+const fetch = require("node-fetch");
+require("dotenv").config();
 
 const app = express();
+const api_key = process.env.API_KEY;
 app.use(express.urlencoded({extended: false}));
 app.use(express.json());
 app.use(cors());
+
 
 // ---- routes ---- //
 // get root route
@@ -109,8 +113,6 @@ app.put("/joinmatch/:matchid", (req, res) => {
     matches.forEach(match => {
         if(Number(match.match_id) === Number(matchid)){
             // adding user to the match signup array
-/*                 match.users_signed_up.push(user_id);
-            joined_match = true; */
             // add player to the match only if they are not already joined // to be added later properly
             // this is a bit workaround where joined_match is always set to true in both cases, and message sent to front end implies they were just added to the match, when they could have been already added from before
             if(!match.users_signed_up.some(user => {
@@ -149,9 +151,6 @@ app.delete("/unjoinmatch/:matchid", (req, res) => {
             console.log("match.match_id:", match.match_id);
             console.log("match.users_signed_up:", match.users_signed_up);
             // make sure the user is signedup for the particular match
-/*             console.log(match.users_signed_up.some(user => {
-                return Number(user) === Number(user_id)
-            })) */
             if(match.users_signed_up.some(user => {
                 return Number(user) === Number(user_id)
             })){
@@ -178,10 +177,13 @@ app.delete("/unjoinmatch/:matchid", (req, res) => {
 // delete match
 // post register
 // get weather 
-app.get("/getweather", (req, res) => {
-    fetch("https://api.darksky.net/forecast/7e5a6c3357123c8400c93c56caa83743/44.868447,13.850852,1578336167")
+app.get("/getweather/:time", (req, res) => {
+    fetch(`https://api.darksky.net/forecast/${api_key}/44.868447,13.850852,${req.params.time}`)
     .then(response => response.json())
-    .then(response => res.json(response));
+    .then(response => {
+        console.log(response.currently);
+        res.json(response.currently)
+    });
 })
 
 

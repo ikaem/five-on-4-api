@@ -1,63 +1,9 @@
 const users = [
     {
-        user_id: 1,
-        user_name: "karlo",
-        user_email: "karlo@gmail.com",
-        user_password: "karlo"
-    },    
-    {
-        user_id: 2,
-        user_name: "ivan",
-        user_email: "ivan@gmail.com",
-        user_password: "ivan"
-    },
-    {
-        user_id: 3,
-        user_name: "martina",
-        user_email: "martina@gmail.com",
-        user_password: "martina"
-    },    
-    {
-        user_id: 4,
-        user_name: "jela",
-        user_email: "jela@gmail.com",
-        user_password: "jela"
-    },
-    {
-        user_id: 5,
-        user_name: "marko",
-        user_email: "marko@gmail.com",
-        user_password: "marko"
-    },    
-    {
-        user_id: 6,
-        user_name: "bule",
-        user_email: "bule@gmail.com",
-        user_password: "bule"
-    },
-    {
-        user_id: 7,
-        user_name: "kiki",
-        user_email: "kiki@gmail.com",
-        user_password: "kiki"
-    },    
-    {
-        user_id: 8,
-        user_name: "alex",
-        user_email: "alex@gmail.com",
-        user_password: "alex"
-    },
-    {
-        user_id: 9,
-        user_name: "taca",
-        user_email: "taca@gmail.com",
-        user_password: "taca"
-    },    
-    {
         user_id: 10,
-        user_name: "joe",
-        user_email: "joe@gmail.com",
-        user_password: "joe"
+        user_name: "world",
+        user_email: "world@gmail.com",
+        user_password: "world"
     },
 ]
 
