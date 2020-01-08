@@ -66,9 +66,7 @@ app.post("/creatematch", (req, res) => {
 })
 // post login
 app.post("/login", (req, res) => {
-    console.log(req.body);
     const {email, password} = req.body;
-    
     if(email && password){
         const wannabe_logged = users.find(user => {
             return user.user_email === email && user.user_password === password    
@@ -83,7 +81,38 @@ app.post("/login", (req, res) => {
     else{
         res.json({data: {}, message: "incomplete data submitted"})
     }
-
+})
+// post register
+app.post("/register", (req, res) => {
+    const {name, email, password} = req.body;
+    if(name && email && password){
+        // first check if there is a user with the same email
+        const email_already_exist = users.find(user => {
+            return user.user_email === email;
+        })
+        // if there is no user with the same email, add user to the database and return logged user with id, name and email and message
+        if(!email_already_exist){
+            //user_id = Math.max(...users.map(u => u.user_id))+1;
+            const user = {
+                user_id: Math.max(...users.map(u => u.user_id))+1, 
+                user_name: name, 
+                user_email: email, 
+                user_password: password
+            }
+            users.push(user);
+            // destructuring into subset and getting data for sending response to logged user - iife
+            console.log((({user_id, user_name, user_email}) => ({user_id, user_name, user_email, joined_matches:[]}))(user))
+            res.json({
+                data: (({user_id, user_name, user_email}) => ({user_id, user_name, user_email, joined_matches:[]}))(user),
+                message: "user registered successfully"
+            })
+        }
+        // if there is a user with the same name, return empty object, with message saying there is already a user with that email
+        else{
+            console.log("nothing");
+            res.json({data: {}, message: "a user with this email already exists"});
+        }
+    }
 })
 // get joined matches
 app.get("/joinedmatches/:userid", (req, res) => {
@@ -175,18 +204,16 @@ app.delete("/unjoinmatch/:matchid", (req, res) => {
     }
 })
 // delete match
-// post register
 // get weather 
 app.get("/getweather/:time", (req, res) => {
     fetch(`https://api.darksky.net/forecast/${api_key}/44.868447,13.850852,${req.params.time}`)
     .then(response => response.json())
     .then(response => {
-        console.log(response.currently);
-        res.json(response.currently)
-    });
+        res.json({data: response.currently, message: "weather fetched successfully"})
+    })
+    .catch(console.log);
 })
-
-const PORT = process.env.PORT? process.env.PORT: 5000;
+const PORT = process.env.PORT? process.env.PORT: 4000;
 app.listen(PORT, () => {
     console.log(`The server is running on port ${PORT}`);
 })
