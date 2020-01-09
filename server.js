@@ -3,13 +3,28 @@ const { matches, users } = require("./database");
 const cors = require("cors");
 const fetch = require("node-fetch");
 require("dotenv").config();
-
+const knex = require("knex")(
+    {
+        client: "pg",
+        connection: {
+            host: "127.0.0.1",
+            user: "postgres",
+            password: "anVvPRpp",
+            database: "fiveon4",
+        }
+    }
+)
+const db = knex;
 const app = express();
 const api_key = process.env.API_KEY;
 app.use(express.urlencoded({extended: false}));
 app.use(express.json());
 app.use(cors());
 
+/* db.select("*")
+.from("matches_static")
+.join("matches_dynamic", "matches_static.id", "=", "matches_dynamic.id")
+.then(console.log); */
 
 // ---- routes ---- //
 // get root route
@@ -56,13 +71,55 @@ app.put("/updatematch/:id", (req, res) => {
 app.post("/creatematch", (req, res) => {
     const {match_id, match_name, date_start, date_end, venue, users_signed_up, users_attended, home_score, away_score, home_scorers, away_scorers, home_team, away_team } = req.body;
 
-    if(match_id && match_name && date_start && date_end && venue && users_signed_up && users_attended && home_score && away_score && home_scorers && away_scorers && home_team && away_team){   
-        matches.push(req.body);
-        res.json({data: matches, message: "new match created successfully"});
-    } 
-    else{
-        res.json({data: {}, message: "incomplete data submitted"})
+    if(match_id && match_name && date_start && date_end && venue && users_signed_up && users_attended && home_score && away_score && home_scorers && away_scorers && home_team && away_team){
+        console.log("true");
+        const match_static = {
+            name: match_name,
+            datestart: date_start,
+            dateend: date_end,
+            venue: venue,
+        }
+        const match_dynamic = {
+            userssignedup: JSON.stringify(users_signed_up),
+            usersattended: JSON.stringify(users_attended),
+            homescore: home_score,
+            awayscore: away_score,
+            homescorers: JSON.stringify(home_scorers),
+            awayscorers: JSON.stringify(away_scorers),
+            hometeam: JSON.stringify(home_team),
+            awayteam: JSON.stringify(away_team),
+        }
+        console.log("here");
+
+        db.transaction(trx => {
+            trx.insert(match_static)
+            .into("matches_static")
+            .returning("*")
+            .then(data => {
+                console.log("here2", data);
+                return trx.insert(match_dynamic)
+                .into("matches_dynamic")
+                .returning("*")
+                .then(data => {
+                    console.log(data);
+                    res.json({data: matches, message: "new match created successfully"})
+                });
+            })
+            .then(trx.commit)
+            .catch(trx.rollback);
+        })
+
+
+
     }
+
+// this is only for testing database
+    //      matches.push(req.body);
+    //     res.json({data: matches, message: "new match created successfully"});
+    // } 
+    // else{
+    //     res.json({data: {}, message: "incomplete data submitted"})
+    // }
 })
 // post login
 app.post("/login", (req, res) => {
