@@ -21,6 +21,46 @@ app.use(express.urlencoded({extended: false}));
 app.use(express.json());
 app.use(cors());
 
+/* db.raw('select matches_static.id, matches_static.name, matches_static.datestart, matches_static.dateend, matches_static.venue, json_array_length(matches_dynamic.userssignedup) as userssignedup, json_array_length(matches_dynamic.usersattended) as usersattended, matches_dynamic.homescore, matches_dynamic.awayscore from matches_static join matches_dynamic on matches_static.id = matches_dynamic.id')
+.then(data => console.log(data.rows)); */
+
+// db.select("matches_static.id", "matches_static.name", "matches_static.datestart", "matches_static.dateend", "matches_static.venue")
+/* 
+db("matches_static")
+.join("matches_dynamic", "matches_static.id", "=", "matches_dynamic.id")
+.select(
+    "matches_static.id",
+    "matches_static.name",
+    "matches_static.datestart as date_start",
+    "matches_static.dateend as date_end",
+    "matches_static.venue",
+    db.raw("json_array_length(matches_dynamic.userssignedup) as players_signed_up"), 
+    db.raw("json_array_length(matches_dynamic.usersattended) as players_attended"), 
+    "matches_dynamic.homescore as home_score", 
+    "matches_dynamic.awayscore as away_score" 
+)
+.then(console.log)
+.catch */
+
+
+/* db("matches_dynamic")
+.select("id", "userssignedup", "usersattended", "homescore", "awayscore")
+.join("name", "datestart")
+.from("matches_static")
+.on("matches_static.id", "=", "matches_dynamic.id")
+// .columnInfo("id", "userssignedup.length")
+.then(data => {
+    console.log(data.map(match => {
+        return {
+            id: match.id, 
+            signed_in_players: match.userssignedup.length,
+            attended_players: match.usersattended.length,
+        
+        }
+    }))
+}
+); */
+
 /* db.select("*")
 .from("matches_static")
 .join("matches_dynamic", "matches_static.id", "=", "matches_dynamic.id")
@@ -29,17 +69,66 @@ app.use(cors());
 // ---- routes ---- //
 // get root route
 app.get("/", (req, res) => {
-    res.json(matches);
+    db("matches_static")
+    .join("matches_dynamic", "matches_dynamic.id", "=", "matches_static.id")
+    .select(
+        "matches_static.id as match_id",
+        "matches_static.name as match_name",
+        "matches_static.datestart as match_date_start",
+        "matches_static.dateend as match_date_end",
+        "matches_static.venue as match_venue",
+        db.raw("json_array_length(matches_dynamic.userssignedup) as match_players_signed_up"), 
+        db.raw("json_array_length(matches_dynamic.usersattended) as match_players_attended"), 
+        "matches_dynamic.homescore as match_home_score", 
+        "matches_dynamic.awayscore as match_away_score"
+    )
+    .orderBy("match_date_start")
+    .then(preview_matches => {
+        if(preview_matches.length){
+            res.json({data: preview_matches, message: "preview matches retrieved successfully"})
+        }
+        else{
+            res.json({data: {}, message: "no preview matches to retrieve"})
+        }
+    })
+    .catch(err => {
+        console.log(err);
+        res.status(500).json({data: err, message: "there was an issue retrieving preview matches"});
+    });
 })
 // get match:id route
 app.get("/match/:id", (req, res) => {
-    const found_match = matches.find(match => Number(match.match_id) === Number(req.params.id));
-    if(found_match){
-        res.json({data: found_match, message: "match found"})
-    } 
-    else{
-        res.json({data: {}, message: "no such match"})
-    }
+
+    db("matches_static")
+    .join("matches_dynamic", "matches_dynamic.id", "=", "matches_static.id")
+    .select(
+        "matches_static.id as match_id",
+        "matches_static.name as match_name",
+        "matches_static.datestart as match_date_start",
+        "matches_static.dateend as match_date_end",
+        "matches_static.venue as match_venue",
+        "matches_dynamic.userssignedup as match_players_signed_up", 
+        "matches_dynamic.usersattended as match_players_attended", 
+        "matches_dynamic.homescore as match_home_score", 
+        "matches_dynamic.awayscore as match_away_score",
+        "matches_dynamic.homescorers as match_home_scorers",
+        "matches_dynamic.awayscorers as match_away_scorers",
+        "matches_dynamic.hometeam as match_home_team",
+        "matches_dynamic.awayteam as match_away_team",
+    )
+    .where("matches_static.id", "=", req.params.id)
+    .then(detailed_match => {
+        if(detailed_match.length){
+            res.json({data: detailed_match[0], message: "detailed match retrieved successfully"})
+        }
+        else{
+            res.json({data: {}, message: "no such match"})
+        }
+    })
+    .catch(err => {
+        console.log(err);
+        res.status(500).json({data: err, message: "there was an issue retrieving preview matches"});
+    });
 })
 app.put("/something", (req, res) => {
     console.log("karlo");
@@ -80,6 +169,7 @@ app.post("/creatematch", (req, res) => {
             venue: venue,
         }
         const match_dynamic = {
+            id: ["data"].id,
             userssignedup: JSON.stringify(users_signed_up),
             usersattended: JSON.stringify(users_attended),
             homescore: home_score,
@@ -94,7 +184,7 @@ app.post("/creatematch", (req, res) => {
         db.transaction(trx => {
             trx.insert(match_static)
             .into("matches_static")
-            .returning("*")
+            .returning("id")
             .then(data => {
                 console.log("here2", data);
                 return trx.insert(match_dynamic)
@@ -179,7 +269,8 @@ app.get("/joinedmatches/:userid", (req, res) => {
         return match.users_signed_up.some(user => {
             return Number(user) === Number(userid);
         })
-    })
+    }).map(match => match.match_id);
+
     if(joined_matches){
         res.json({data: joined_matches, message: "user matches fetched successfully"});
     }
