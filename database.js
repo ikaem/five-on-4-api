@@ -16,6 +16,7 @@ const matches = [
         venue: "the school pitch",
 		users_signed_up: [1,2,3,4,5,6,7,8,9,10],
 		users_attended: [1,2,3,4,5,6,7,8,9,10],
+		match_reported: false,
 		home_score: "3",
 		away_score: "2",
 		home_scorers: [1,3,1],

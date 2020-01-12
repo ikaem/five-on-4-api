@@ -21,50 +21,27 @@ app.use(express.urlencoded({extended: false}));
 app.use(express.json());
 app.use(cors());
 
-/* db.raw('select matches_static.id, matches_static.name, matches_static.datestart, matches_static.dateend, matches_static.venue, json_array_length(matches_dynamic.userssignedup) as userssignedup, json_array_length(matches_dynamic.usersattended) as usersattended, matches_dynamic.homescore, matches_dynamic.awayscore from matches_static join matches_dynamic on matches_static.id = matches_dynamic.id')
-.then(data => console.log(data.rows)); */
 
-// db.select("matches_static.id", "matches_static.name", "matches_static.datestart", "matches_static.dateend", "matches_static.venue")
-/* 
-db("matches_static")
-.join("matches_dynamic", "matches_static.id", "=", "matches_dynamic.id")
-.select(
-    "matches_static.id",
-    "matches_static.name",
-    "matches_static.datestart as date_start",
-    "matches_static.dateend as date_end",
-    "matches_static.venue",
-    db.raw("json_array_length(matches_dynamic.userssignedup) as players_signed_up"), 
-    db.raw("json_array_length(matches_dynamic.usersattended) as players_attended"), 
-    "matches_dynamic.homescore as home_score", 
-    "matches_dynamic.awayscore as away_score" 
+// testing knex
+
+db.select(
+    "matches.match_id",
+    "matches.match_name",
+	"matches.match_venue",
+	"matches.match_date_start as match_start",
+    "matches.match_date_end as match_end",
+    db.raw("(select array_agg(logins.user_name) from logins, match_participation where match_participation.user_id = logins.user_id and match_participation.part_signed_up = true and matches.match_id = match_participation.match_id) as signed_up"),
+    db.raw("(select array_agg(logins.user_name) from logins, match_participation where match_participation.user_id = logins.user_id and  match_participation.part_attended = true and matches.match_id = match_participation.match_id ) as attended"),
+    db.raw("(select match_report.report_home_score from match_report where match_report.match_id = matches.match_id) as home_score"),
+    db.raw("(select match_report.report_away_score from match_report where match_report.match_id = matches.match_id) as away_score"),
+    db.raw("(select array_agg(logins.user_name) from logins, match_participation where match_participation.user_id = logins.user_id and match_participation.part_home_team = true and matches.match_id = match_participation.match_id ) as home_team"),
+    db.raw("(select array_agg(logins.user_name) from logins, match_participation where match_participation.user_id = logins.user_id and match_participation.part_away_team = true and matches.match_id = match_participation.match_id ) as away_team"),
+    db.raw("(select array_agg(logins.user_name) from logins, match_participation, generate_series(1,match_participation.part_scored) where match_participation.user_id = logins.user_id and match_participation.part_scored > 0 and matches.match_id = match_participation.match_id) as scored"),
+    db.raw("(select match_report.report_match_reported from match_report where match_report.match_id = matches.match_id) as match_reported")
 )
-.then(console.log)
-.catch */
+.from("matches")
+.then(console.log);
 
-
-/* db("matches_dynamic")
-.select("id", "userssignedup", "usersattended", "homescore", "awayscore")
-.join("name", "datestart")
-.from("matches_static")
-.on("matches_static.id", "=", "matches_dynamic.id")
-// .columnInfo("id", "userssignedup.length")
-.then(data => {
-    console.log(data.map(match => {
-        return {
-            id: match.id, 
-            signed_in_players: match.userssignedup.length,
-            attended_players: match.usersattended.length,
-        
-        }
-    }))
-}
-); */
-
-/* db.select("*")
-.from("matches_static")
-.join("matches_dynamic", "matches_static.id", "=", "matches_dynamic.id")
-.then(console.log); */
 
 // ---- routes ---- //
 // get root route
@@ -84,12 +61,7 @@ app.get("/", (req, res) => {
     )
     .orderBy("match_date_start")
     .then(preview_matches => {
-        if(preview_matches.length){
-            res.json({data: preview_matches, message: "preview matches retrieved successfully"})
-        }
-        else{
-            res.json({data: {}, message: "no preview matches to retrieve"})
-        }
+        res.json({data: preview_matches, message: "preview matches retrieved successfully"})
     })
     .catch(err => {
         console.log(err);
@@ -115,19 +87,15 @@ app.get("/match/:id", (req, res) => {
         "matches_dynamic.awayscorers as match_away_scorers",
         "matches_dynamic.hometeam as match_home_team",
         "matches_dynamic.awayteam as match_away_team",
+        "matches_dynamic.matchreported as match_reported",
     )
     .where("matches_static.id", "=", req.params.id)
     .then(detailed_match => {
-        if(detailed_match.length){
-            res.json({data: detailed_match[0], message: "detailed match retrieved successfully"})
-        }
-        else{
-            res.json({data: {}, message: "no such match"})
-        }
+        res.json({data: detailed_match[0], message: "detailed match retrieved successfully"})
     })
     .catch(err => {
         console.log(err);
-        res.status(500).json({data: err, message: "there was an issue retrieving preview matches"});
+        res.status(500).json({data: err, message: "there was an issue retrieving the match"});
     });
 })
 app.put("/something", (req, res) => {
@@ -280,7 +248,18 @@ app.get("/joinedmatches/:userid", (req, res) => {
 })
 // put join match - #32
 app.put("/joinmatch/:matchid", (req, res) => {
-    console.log(req.body);
+
+    const {user_name} = req.body;
+    const {matchid} = req.params;
+    console.log(user_name, matchid);
+
+    db("matches_dynamic")
+    .where("id", matchid)
+    .update({userssignedup: db.select("userssignedup").from("matches_dynamic").then(data => concat(JSON.stringify([user_name])))})
+    .then(console.log);
+
+
+/*     console.log(req.body);
 // find the match with matchid
     // for each works? this will change anyway when have actual database
     const { matchid } = req.params;
@@ -309,7 +288,7 @@ app.put("/joinmatch/:matchid", (req, res) => {
     }
     else{
         res.json({data: {}, message: "no such match"})
-    }
+    } */
 // get its signeup users array
 // add to array the user's id
 })
@@ -354,13 +333,17 @@ app.delete("/unjoinmatch/:matchid", (req, res) => {
 // delete match
 // get weather 
 app.get("/getweather/:time", (req, res) => {
-    fetch(`https://api.darksky.net/forecast/${api_key}/44.868447,13.850852,${req.params.time}`)
+    fetch(`https://api.darksky.net/forecast/${api_key}/44.868447,13.850852,${req.params.time}?units=auto`)
     .then(response => response.json())
     .then(response => {
-        res.json({data: response.currently, message: "weather fetched successfully"})
+
+        res.json({data: (({summary, icon, precipProbability, precipType, temperature, apparentTemperature, windSpeed}) => ({summary, icon, precipProbability, precipType, temperature, apparentTemperature, windSpeed}))(response.currently), message: "weather fetched successfully"})
     })
-    .catch(console.log);
+    .catch(err => {
+        res.json({data: err, message: "error fetching weather"})
+    });
 })
+
 const PORT = process.env.PORT? process.env.PORT: 4000;
 app.listen(PORT, () => {
     console.log(`The server is running on port ${PORT}`);
