@@ -24,41 +24,40 @@ app.use(cors());
 
 // testing knex
 
-db.select(
+/* db.select(
     "matches.match_id",
     "matches.match_name",
 	"matches.match_venue",
 	"matches.match_date_start as match_start",
     "matches.match_date_end as match_end",
-    db.raw("(select array_agg(logins.user_name) from logins, match_participation where match_participation.user_id = logins.user_id and match_participation.part_signed_up = true and matches.match_id = match_participation.match_id) as signed_up"),
-    db.raw("(select array_agg(logins.user_name) from logins, match_participation where match_participation.user_id = logins.user_id and  match_participation.part_attended = true and matches.match_id = match_participation.match_id ) as attended"),
-    db.raw("(select match_report.report_home_score from match_report where match_report.match_id = matches.match_id) as home_score"),
-    db.raw("(select match_report.report_away_score from match_report where match_report.match_id = matches.match_id) as away_score"),
-    db.raw("(select array_agg(logins.user_name) from logins, match_participation where match_participation.user_id = logins.user_id and match_participation.part_home_team = true and matches.match_id = match_participation.match_id ) as home_team"),
-    db.raw("(select array_agg(logins.user_name) from logins, match_participation where match_participation.user_id = logins.user_id and match_participation.part_away_team = true and matches.match_id = match_participation.match_id ) as away_team"),
-    db.raw("(select array_agg(logins.user_name) from logins, match_participation, generate_series(1,match_participation.part_scored) where match_participation.user_id = logins.user_id and match_participation.part_scored > 0 and matches.match_id = match_participation.match_id) as scored"),
-    db.raw("(select match_report.report_match_reported from match_report where match_report.match_id = matches.match_id) as match_reported")
+    db.raw("(select array_agg(logins.user_name) from logins, matches_participation where matches_participation.user_id = logins.user_id and matches_participation.part_signed_up = true and matches.match_id = matches_participation.match_id) as signed_up"),
+    db.raw("(select array_agg(logins.user_name) from logins, matches_participation where matches_participation.user_id = logins.user_id and  matches_participation.part_attended = true and matches.match_id = matches_participation.match_id ) as attended"),
+    db.raw("(select matches_report.report_home_score from matches_report where matches_report.match_id = matches.match_id) as home_score"),
+    db.raw("(select matches_report.report_away_score from matches_report where matches_report.match_id = matches.match_id) as away_score"),
+    db.raw("(select array_agg(logins.user_name) from logins, matches_participation where matches_participation.user_id = logins.user_id and matches_participation.part_home_team = true and matches.match_id = matches_participation.match_id ) as home_team"),
+    db.raw("(select array_agg(logins.user_name) from logins, matches_participation where matches_participation.user_id = logins.user_id and matches_participation.part_away_team = true and matches.match_id = matches_participation.match_id ) as away_team"),
+    db.raw("(select array_agg(logins.user_name) from logins, matches_participation, generate_series(1,matches_participation.part_scored) where matches_participation.user_id = logins.user_id and matches_participation.part_scored > 0 and matches.match_id = matches_participation.match_id) as scored"),
+    db.raw("(select matches_report.report_matches_reported from matches_report where matches_report.match_id = matches.match_id) as matches_reported")
 )
 .from("matches")
-.then(console.log);
+.then(console.log); */
 
 
 // ---- routes ---- //
 // get root route
 app.get("/", (req, res) => {
-    db("matches_static")
-    .join("matches_dynamic", "matches_dynamic.id", "=", "matches_static.id")
-    .select(
-        "matches_static.id as match_id",
-        "matches_static.name as match_name",
-        "matches_static.datestart as match_date_start",
-        "matches_static.dateend as match_date_end",
-        "matches_static.venue as match_venue",
-        db.raw("json_array_length(matches_dynamic.userssignedup) as match_players_signed_up"), 
-        db.raw("json_array_length(matches_dynamic.usersattended) as match_players_attended"), 
-        "matches_dynamic.homescore as match_home_score", 
-        "matches_dynamic.awayscore as match_away_score"
+    db.select(
+        "matches.match_id",
+        "matches.match_name",
+        "matches.match_date_start",
+        "matches.match_date_end",
+        "matches.match_venue" ,
+        db.raw("(select count (matches_participation.part_signed_up) from matches_participation where matches_participation.match_id = matches.match_id and matches_participation.part_signed_up = true) as match_players_signed_up"),
+        db.raw("(select count (matches_participation.part_attended) from matches_participation where matches_participation.match_id = matches.match_id and matches_participation.part_attended = true) as match_players_attended"),
+        db.raw("(select matches_report.report_home_score from matches_report where matches_report.match_id = matches.match_id) as match_home_score"),
+        db.raw("(select matches_report.report_away_score from matches_report where matches_report.match_id = matches.match_id) as match_away_score")
     )
+    .from("matches")
     .orderBy("match_date_start")
     .then(preview_matches => {
         res.json({data: preview_matches, message: "preview matches retrieved successfully"})
@@ -70,26 +69,23 @@ app.get("/", (req, res) => {
 })
 // get match:id route
 app.get("/match/:id", (req, res) => {
-
-    db("matches_static")
-    .join("matches_dynamic", "matches_dynamic.id", "=", "matches_static.id")
-    .select(
-        "matches_static.id as match_id",
-        "matches_static.name as match_name",
-        "matches_static.datestart as match_date_start",
-        "matches_static.dateend as match_date_end",
-        "matches_static.venue as match_venue",
-        "matches_dynamic.userssignedup as match_players_signed_up", 
-        "matches_dynamic.usersattended as match_players_attended", 
-        "matches_dynamic.homescore as match_home_score", 
-        "matches_dynamic.awayscore as match_away_score",
-        "matches_dynamic.homescorers as match_home_scorers",
-        "matches_dynamic.awayscorers as match_away_scorers",
-        "matches_dynamic.hometeam as match_home_team",
-        "matches_dynamic.awayteam as match_away_team",
-        "matches_dynamic.matchreported as match_reported",
+    db.select(
+        "matches.match_id",
+        "matches.match_name",
+        "matches.match_date_start",
+        "matches.match_date_end",
+        "matches.match_venue",
+        db.raw("(select matches_report.report_match_reported from matches_report where matches_report.match_id = matches.match_id) as match_reported"),
+        db.raw("(select matches_report.report_home_score from matches_report where matches_report.match_id = matches.match_id) as match_home_score"),
+        db.raw("(select matches_report.report_away_score from matches_report where matches_report.match_id = matches.match_id) as match_away_score"),
+        db.raw("(select array_agg(logins.user_name) from logins, matches_participation where matches_participation.part_signed_up = true and logins.user_id = matches_participation.user_id and matches_participation.match_id = matches.match_id) as match_players_signed_up"),
+        db.raw("(select array_agg(logins.user_name) from logins, matches_participation where matches_participation.part_attended = true and logins.user_id = matches_participation.user_id and matches_participation.match_id = matches.match_id) as match_players_attended"),
+        db.raw("(select array_agg(logins.user_name) from logins, matches_participation, generate_series(1, matches_participation.part_scored) where matches_participation.part_scored > 0 and logins.user_id = matches_participation.user_id and matches_participation.match_id = matches.match_id) as match_scorers"),
+        db.raw("(select array_agg(logins.user_name) from logins, matches_participation where matches_participation.user_id = logins.user_id and matches_participation.part_home_team = true and matches_participation.match_id = matches.match_id) as match_home_team"),
+        db.raw("(select array_agg(logins.user_name) from logins, matches_participation where matches_participation.user_id = logins.user_id and matches_participation.part_away_team = true and matches_participation.match_id = matches.match_id) as match_away_team"),
     )
-    .where("matches_static.id", "=", req.params.id)
+    .from("matches")
+    .where("matches.match_id", req.params.id)
     .then(detailed_match => {
         res.json({data: detailed_match[0], message: "detailed match retrieved successfully"})
     })
@@ -97,10 +93,6 @@ app.get("/match/:id", (req, res) => {
         console.log(err);
         res.status(500).json({data: err, message: "there was an issue retrieving the match"});
     });
-})
-app.put("/something", (req, res) => {
-    console.log("karlo");
-    res.json("karlo");
 })
 // put update match:id
 app.put("/updatematch/:id", (req, res) => {
@@ -181,17 +173,43 @@ app.post("/creatematch", (req, res) => {
 })
 // post login
 app.post("/login", (req, res) => {
-    const {email, password} = req.body;
+    console.log(req.body);
+    const {email, password} = req.body
     if(email && password){
-        const wannabe_logged = users.find(user => {
-            return user.user_email === email && user.user_password === password    
+        // so with email i could fetch id, name, email and joined matches
+        // and only then do i check against password
+        // if all get, send the data to front end
+        // or i could first test for email, and if true, i could refetch - but i dont want to fetch twice? 
+        // i will do both to see what is shorter?
+
+        // in here it is maybe not good that i am actually fetching password from the database into backend? but i have it anyway..
+        // bcrypt js needs here / async one
+        db.select(
+            "logins.user_id",
+            "logins.user_name",
+            "logins.user_email",
+            "logins.user_password",
+            db.raw("(select array_agg(matches.match_id) from matches, matches_participation where logins.user_id = matches_participation.user_id and matches_participation.part_signed_up = true and matches_participation.match_id = matches.match_id) as user_signed_up_matches"), 
+        )
+        .from("logins")
+        .where({["logins.user_email"]: email, ["logins.user_password"]: password})
+        .then(data => data[0])
+        .then(wannabe_logged_in => {
+            if(wannabe_logged_in && wannabe_logged_in.user_password === password){
+                console.log(
+                    (({user_id, user_name, user_email, user_signed_up_matches}) => ({user_id, user_name, user_email, user_signed_up_matches}))(wannabe_logged_in)
+                )
+                res.json({
+                    data: (({user_id, user_name, user_email, user_signed_up_matches}) => ({user_id, user_name, user_email, user_signed_up_matches}))(wannabe_logged_in), 
+                    message: "user logged in successfully"})
+            }
+            else{
+                res.json({data: {}, message: "incorrect credentials combination / or maybe no such user"})
+            }
+        })
+        .catch(err => {
+            res.status(500).json({data: err, message: "there was an error retrieving user information from database"})
         });
-        if(wannabe_logged){
-            res.json({data: {id: wannabe_logged.user_id, name: wannabe_logged.user_name, email: wannabe_logged.user_email, joined_matches: []}, message: "user logged in successfully"})
-        }
-        else{
-            res.json({data: {}, message: "no such user"})
-        }
     }
     else{
         res.json({data: {}, message: "incomplete data submitted"})
@@ -230,105 +248,53 @@ app.post("/register", (req, res) => {
     }
 })
 // get joined matches
-app.get("/joinedmatches/:userid", (req, res) => {
-    const { userid } = req.params;
-    console.log("tis null?", userid);
-    const joined_matches = matches.filter(match => {
-        return match.users_signed_up.some(user => {
-            return Number(user) === Number(userid);
-        })
-    }).map(match => match.match_id);
+app.get("/signedupmatches/:user_id", (req, res) => {
+    const { user_id } = req.params;
 
-    if(joined_matches){
+    db.raw(`select array_agg(matches.match_id) as joined_matches from matches, matches_participation, logins where logins.user_id = ${user_id} and logins.user_id = matches_participation.user_id and matches_participation.part_signed_up = true and  matches_participation.match_id = matches.match_id`)
+    .then(data => data.rows[0].joined_matches)
+    .then(joined_matches => {
+        console.log(joined_matches);
         res.json({data: joined_matches, message: "user matches fetched successfully"});
-    }
-    else{
+    })
+    .catch(err => {
         res.json({data: {}, message: "there was a problem accessing user's matches. Please log out and try logging in again."})
-    }
+    })
 })
 // put join match - #32
-app.put("/joinmatch/:matchid", (req, res) => {
+app.put("/joinmatch", (req, res) => {
+    const {user_id, match_id} = req.body;
+    console.log(user_id, match_id);
+    db.raw(
+        `insert into matches_participation(user_id, match_id, part_signed_up) 
+        values(${user_id}, ${match_id}, ${true}) 
+        on conflict(user_id, match_id) 
+        do update 
+        set part_signed_up = excluded.part_signed_up`)
+    .then(data => {
+        res.json({data: {}, message: "match joined successfully"})
 
-    const {user_name} = req.body;
-    const {matchid} = req.params;
-    console.log(user_name, matchid);
-
-    db("matches_dynamic")
-    .where("id", matchid)
-    .update({userssignedup: db.select("userssignedup").from("matches_dynamic").then(data => concat(JSON.stringify([user_name])))})
-    .then(console.log);
-
-
-/*     console.log(req.body);
-// find the match with matchid
-    // for each works? this will change anyway when have actual database
-    const { matchid } = req.params;
-    const { user_id } = req.body;
-    let joined_match = false;
-    // looping over all matches to find a match that matches the match the user wants to join
-    matches.forEach(match => {
-        if(Number(match.match_id) === Number(matchid)){
-            // adding user to the match signup array
-            // add player to the match only if they are not already joined // to be added later properly
-            // this is a bit workaround where joined_match is always set to true in both cases, and message sent to front end implies they were just added to the match, when they could have been already added from before
-            if(!match.users_signed_up.some(user => {
-                return Number(user) === Number(user_id)
-            })){
-                match.users_signed_up.push(user_id);
-                joined_match = true;
-            }
-            else{
-                joined_match = true;
-                console.log("player was already signed in");
-            }
-        }
     })
-    if(joined_match){
-        res.json({data: matches, message: "the match joined successfully"})
-    }
-    else{
-        res.json({data: {}, message: "no such match"})
-    } */
-// get its signeup users array
-// add to array the user's id
+    .catch(err => {
+        res.status(500).json({data: {err}, message: "there was an issue joining the match. please try again"})
+    })
 })
 // put unjoin match
-app.delete("/unjoinmatch/:matchid", (req, res) => {
-    console.log(req.body);
-// find the match with matchid
-    // for each works? this will change anyway when have actual database
-    const { matchid } = req.params;
-    const { user_id } = req.body;
-    console.log("user_id:", user_id);
-    let unjoined_match = false;
-    // looping over all matches to find a match that matches the match the user wants to unjoin
-    matches.forEach(match => {
-        if(Number(match.match_id) === Number(matchid)){
-            console.log("match.match_id:", match.match_id);
-            console.log("match.users_signed_up:", match.users_signed_up);
-            // make sure the user is signedup for the particular match
-            if(match.users_signed_up.some(user => {
-                return Number(user) === Number(user_id)
-            })){
-                console.log("1.", match.users_signed_up);
-                // find index of the user's id in the match's signup array, and remove the users's id
-                match.users_signed_up.splice(match.users_signed_up.indexOf(user_id), 1);
-                unjoined_match = true;
-                console.log("2.", match.users_signed_up);
+app.put("/unjoinmatch", (req, res) => {
+    const {user_id, match_id} = req.body;
+    db.raw(
+        `insert into matches_participation(user_id, match_id, part_signed_up) 
+        values(${user_id}, ${match_id}, ${false}) 
+        on conflict(user_id, match_id) 
+        do update 
+        set part_signed_up = excluded.part_signed_up`)
+    .then(data => {
+        res.json({data: {}, message: "match unjoined successfully"})
 
-            }
-            else{
-                unjoined_match = true;
-                console.log("the player was not signed in anyway")
-            }
-        }
     })
-    if(unjoined_match){
-        res.json({data: matches, message: "the match unjoined successfully"})
-    }
-    else{
-        res.json({data: {}, message: "no such match"})
-    }
+    .catch(err => {
+        res.status(500).json({data: {err}, message: "there was an issue unjoining the match. please try again"})
+    })
 })
 // delete match
 // get weather 
