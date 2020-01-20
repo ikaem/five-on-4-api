@@ -90,16 +90,15 @@ app.get("/detailedmatch/:id", (req, res) => {
         db.raw("(select matches_report.report_match_reported from matches_report where matches_report.match_id = matches.match_id) as match_reported"),
         db.raw("(select matches_report.report_home_score from matches_report where matches_report.match_id = matches.match_id) as match_home_score"),
         db.raw("(select matches_report.report_away_score from matches_report where matches_report.match_id = matches.match_id) as match_away_score"),
-        db.raw("(select coalesce (array_agg(logins.user_name), array[]::character varying[]) from logins, matches_participation where matches_participation.part_signed_up = true and logins.user_id = matches_participation.user_id and matches_participation.match_id = matches.match_id) as match_players_signed_up"),
-        db.raw("(select coalesce (array_agg(logins.user_name), array[]::character varying[]) from logins, matches_participation where matches_participation.part_attended = true and logins.user_id = matches_participation.user_id and matches_participation.match_id = matches.match_id) as match_players_attended"),
-        db.raw("(select coalesce (array_agg(logins.user_name), array[]::character varying[]) from logins, matches_participation, generate_series(1, matches_participation.part_scored) where matches_participation.part_scored > 0 and logins.user_id = matches_participation.user_id and matches_participation.match_id = matches.match_id) as match_scorers"),
-        db.raw("(select coalesce (array_agg(logins.user_name), array[]::character varying[]) from logins, matches_participation where matches_participation.user_id = logins.user_id and matches_participation.part_home_team = true and matches_participation.match_id = matches.match_id) as match_home_team"),
-        db.raw("(select coalesce (array_agg(logins.user_name), array[]::character varying[]) from logins, matches_participation where matches_participation.user_id = logins.user_id and matches_participation.part_away_team = true and matches_participation.match_id = matches.match_id) as match_away_team"),
+        db.raw("(select coalesce(json_agg(json_build_object('user_id', logins.user_id, 'user_name', logins.user_name))) from logins, matches_participation where matches_participation.part_signed_up = true and logins.user_id = matches_participation.user_id and matches_participation.match_id = matches.match_id) as match_players_signed_up"),
+        db.raw("(select coalesce(json_agg(json_build_object('user_id', logins.user_id, 'user_name', logins.user_name))) from logins, matches_participation where matches_participation.part_attended = true and logins.user_id = matches_participation.user_id and matches_participation.match_id = matches.match_id) as match_players_attended"),
+        db.raw("(select coalesce(json_agg(json_build_object('user_id', logins.user_id, 'user_name', logins.user_name, 'user_goals', matches_participation.part_scored)), json_build_array()) from logins, matches_participation where matches_participation.part_scored > 0 and logins.user_id = matches_participation.user_id and matches_participation.match_id = matches.match_id) as match_scorers"),
+        db.raw("(select coalesce(json_agg(json_build_object('user_id', logins.user_id, 'user_name', logins.user_name)), json_build_array())from logins, matches_participation where matches_participation.user_id = logins.user_id and matches_participation.part_home_team = true and matches_participation.match_id = matches.match_id) as match_home_team"),
+        db.raw("(select coalesce(json_agg(json_build_object('user_id', logins.user_id, 'user_name', logins.user_name)), json_build_array()) from logins, matches_participation where matches_participation.user_id = logins.user_id and matches_participation.part_away_team = true and matches_participation.match_id = matches.match_id) as match_away_team"),
     )
     .from("matches")
     .where("matches.match_id", req.params.id)
     .then(detailed_match => {
-        console.log(detailed_match[0]);
         res.json({data: detailed_match[0], message: "detailed match retrieved successfully"})
     })
     .catch(err => {
@@ -115,10 +114,10 @@ app.post("/creatematch", (req, res) => {
     if(match_name, match_date_start, match_date_end, match_venue){
         db("matches")
         .insert({match_name, match_date_start, match_date_end, match_venue})
-        .returning("match_name")
-        .then((match_created_name) => {
-            if(match_created_name){
-                res.json({data: match_created_name[0], message: "new match successfully created"});
+        .returning(["match_id","match_name"])
+        .then((created_match_data_response) => {
+            if(created_match_data_response){
+                res.json({data: created_match_data_response[0], message: "new match successfully created"});
             }
             else{
                 res.status(500).json({data: {}, message: "there was an issue creating a new match"})
@@ -142,10 +141,10 @@ app.put("/updatematch/:id", (req, res) => {
         db("matches")
         .update({match_name, match_venue, match_date_start, match_date_end})
         .where("match_id", id)
-        .returning("match_name")
-        .then(updated_match_name_response => {
-            if(updated_match_name_response[0]){
-                res.json({data: updated_match_name_response[0], message: "the match updated successfully"});
+        .returning(["match_id","match_name"])
+        .then(updated_match_data_response => {
+            if(updated_match_data_response){
+                res.json({data: updated_match_data_response[0], message: "the match updated successfully"});
             }
             else{
                 res.json({data: {}, message: "there was an error updating match"})
@@ -186,11 +185,11 @@ app.get("/forreportmatch/:id", (req, res) => {
         db.raw("(select matches_report.report_match_reported from matches_report where matches_report.match_id = matches.match_id) as match_reported"),
         db.raw("(select matches_report.report_home_score from matches_report where matches_report.match_id = matches.match_id) as match_home_score"),
         db.raw("(select matches_report.report_away_score from matches_report where matches_report.match_id = matches.match_id) as match_away_score"),
-        db.raw("(select coalesce (array_agg(logins.user_name), array[]::character varying[]) from logins, matches_participation where matches_participation.part_signed_up = true and logins.user_id = matches_participation.user_id and matches_participation.match_id = matches.match_id) as match_players_signed_up"),
-        db.raw("(select coalesce (array_agg(logins.user_name), array[]::character varying[]) from logins, matches_participation where matches_participation.part_attended = true and logins.user_id = matches_participation.user_id and matches_participation.match_id = matches.match_id) as match_players_attended"),
-        db.raw("(select coalesce (array_agg(logins.user_name), array[]::character varying[]) from logins, matches_participation, generate_series(1, matches_participation.part_scored) where matches_participation.part_scored > 0 and logins.user_id = matches_participation.user_id and matches_participation.match_id = matches.match_id) as match_scorers"),
-        db.raw("(select coalesce (array_agg(logins.user_name), array[]::character varying[]) from logins, matches_participation where matches_participation.user_id = logins.user_id and matches_participation.part_home_team = true and matches_participation.match_id = matches.match_id) as match_home_team"),
-        db.raw("(select coalesce (array_agg(logins.user_name), array[]::character varying[]) from logins, matches_participation where matches_participation.user_id = logins.user_id and matches_participation.part_away_team = true and matches_participation.match_id = matches.match_id) as match_away_team"),
+        db.raw("(select coalesce(json_agg(json_build_object('user_id', logins.user_id, 'user_name', logins.user_name)), json_build_array()) from logins, matches_participation where matches_participation.part_signed_up = true and logins.user_id = matches_participation.user_id and matches_participation.match_id = matches.match_id) as match_players_signed_up"),
+        db.raw("(select coalesce(json_agg(json_build_object('user_id', logins.user_id)), json_build_array()) from logins, matches_participation where matches_participation.part_attended = true and logins.user_id = matches_participation.user_id and matches_participation.match_id = matches.match_id) as match_players_attended"),
+        db.raw("(select coalesce(json_agg(json_build_object('user_id', logins.user_id, 'user_goals', matches_participation.part_scored)), json_build_array()) from logins, matches_participation where matches_participation.part_signed_up = true and logins.user_id = matches_participation.user_id and matches_participation.match_id = matches.match_id) as match_scorers"),
+        db.raw("(select coalesce(json_agg(json_build_object('user_id', logins.user_id)), json_build_array()) from logins, matches_participation where matches_participation.user_id = logins.user_id and matches_participation.part_home_team = true and matches_participation.match_id = matches.match_id) as match_home_team"),
+        db.raw("(select coalesce(json_agg(json_build_object('user_id', logins.user_id)), json_build_array()) from logins, matches_participation where matches_participation.user_id = logins.user_id and matches_participation.part_away_team = true and matches_participation.match_id = matches.match_id) as match_away_team"),
     )
     .from("matches")
     .where("matches.match_id", req.params.id)
@@ -206,6 +205,7 @@ app.get("/forreportmatch/:id", (req, res) => {
 // report match
 app.put("/reportmatch/:id", (req, res) => {
     const { match_players, report_match_reported, report_home_score, report_away_score} = req.body;
+    console.log(req.body);
 
     db.transaction(trx => {
         const players_promises = match_players.map(player => {
@@ -220,6 +220,7 @@ app.put("/reportmatch/:id", (req, res) => {
                 match_id: 6, 
                 // part signed up not needed most likely
                 part_signed_up: true, 
+                // this is not necessary bc i can easily get userid in the app, but leaving here to remind how subquery in knex
                 user_id: db("logins").where({user_name: player.user_name}).select("user_id")
             })
             // .returning("*")
@@ -242,7 +243,7 @@ app.put("/reportmatch/:id", (req, res) => {
         return Promise.all(players_promises)
             .then(data => {
                 trx.commit;
-                res.json({data: {}, message: "the match was successfully updated"});
+                res.json({data: {}, message: "the match report was successfully updated"});
             })
             .catch(err => {
                 console.log(err)
@@ -325,13 +326,14 @@ app.post("/login", (req, res) => {
 })
 // post register
 app.post("/register", (req, res) => {
-    const {user_name, user_email, user_password} = req.body;
+    const {name, email, password} = req.body;
+    console.log(req.body);
     db("logins")
     .insert({
-        user_name: user_name, 
-        user_email: user_email, 
+        user_name: name, 
+        user_email: email, 
         // using sync bcrypt bc i dont want to nest it and chain it with then while waiting for promise to fulfill. and i am not sure how to do it elegantly... 
-        user_password: bcrypt.hashSync(user_password, bcrypt.genSaltSync(10))
+        user_password: bcrypt.hashSync(password, bcrypt.genSaltSync(10))
     })
     // genius internet. i think i need to use this array in few other places to avoid more code generating needed object
     .returning(["user_id", "user_name", "user_email"])
@@ -350,11 +352,15 @@ app.post("/register", (req, res) => {
     });
 })
 // get joined matches - this endpoint can be completely avoided if using return from join and unjoin matches, and fetching join matches when login
+// true, but i really wouldnt know how to do that and get this json object. there prolly is a way, tho...
 app.get("/signedupmatches/:user_id", (req, res) => {
     const { user_id } = req.params;
     // coalescing to array if no joined matches
-    db.raw(`select coalesce (array_agg(matches.match_id), array[]::integer[]) as joined_matches from matches, matches_participation, logins where logins.user_id = ${user_id} and logins.user_id = matches_participation.user_id and matches_participation.part_signed_up = true and  matches_participation.match_id = matches.match_id`)
-    .then(data => data.rows[0].joined_matches)
+/*     db.raw(`select coalesce (array_agg(matches.match_id), array[]::integer[]) as joined_matches from matches, matches_participation, logins where logins.user_id = ${user_id} and logins.user_id = matches_participation.user_id and matches_participation.part_signed_up = true and  matches_participation.match_id = matches.match_id`) */
+
+    db.raw(`select coalesce(json_agg(json_build_object('match_id', matches_participation.match_id, 'match_name', matches.match_name, 'match_date', matches.match_date_start)), json_build_array()) as user_signed_up_matches from matches_participation, matches where matches_participation.part_signed_up = true and matches_participation.user_id = ${user_id} and matches.match_id = matches_participation.match_id`)
+
+    .then(data => data.rows[0].user_signed_up_matches)
     .then(joined_matches => {
         console.log(joined_matches);
         res.json({data: joined_matches, message: "user matches fetched successfully"});
@@ -402,9 +408,11 @@ app.put("/unjoinmatch", (req, res) => {
 // delete match
 // get weather 
 app.get("/getweather/:time", (req, res) => {
+    console.log(req.params.time);
     fetch(`https://api.darksky.net/forecast/${api_key}/44.868447,13.850852,${req.params.time}?units=auto`)
     .then(response => response.json())
     .then(response => {
+        console.log(response);
 
         res.json({data: (({summary, icon, precipProbability, precipType, temperature, apparentTemperature, windSpeed}) => ({summary, icon, precipProbability, precipType, temperature, apparentTemperature, windSpeed}))(response.currently), message: "weather fetched successfully"})
     })
