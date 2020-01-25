@@ -224,50 +224,27 @@ app.get("/forreportmatch/:id", (req, res) => {
 // report match
 app.put("/reportmatch/:id", (req, res) => {
     const { match_players, report_match_reported, report_home_score, report_away_score} = req.body;
+    const {id} = req.params;
     console.log(req.body);
 
     db.transaction(trx => {
         const players_promises = match_players.map(player => {
-            return trx("matches_participation")
-            .update({
-                part_scored: player.part_scored, 
-                part_attended: player.part_attended, 
-                part_home_team: player.part_home_team, 
-                part_away_team: player.part_away_team
-            })
-            .where({
-                match_id: 6, 
-                // part signed up not needed most likely
-                part_signed_up: true, 
-                // this is not necessary bc i can easily get userid in the app, but leaving here to remind how subquery in knex
-                user_id: db("logins").where({user_name: player.user_name}).select("user_id")
-            })
-            // .returning("*")
-            // what is transacting for?
-            // apparently, makes ever update be in the same transaction
+			return trx.raw(`insert into matches_participation(user_id, match_id, part_scored, part_attended, part_home_team, part_away_team) values(${player.user_id}, ${id}, ${player.part_scored}, ${player.part_attended}, ${player.part_home_team}, ${player.part_away_team}) on conflict(user_id, match_id) do update set part_scored = excluded.part_scored, part_attended = excluded.part_attended, part_home_team = excluded.part_home_team, part_away_team = excluded.part_away_team`)
             .transacting(trx)
         })
-        // this way doesnt look right, because it seems out of the transaction really
-        players_promises.push(trx("matches_report")
-            .update({
-                report_match_reported: report_match_reported,
-                report_home_score: report_home_score,
-                report_away_score: report_away_score
-            })
-            .where({
-                match_id: 6,
-            })
-            .transacting(trx)
+        players_promises.push(
+			trx.raw(`insert into matches_report(match_id, report_match_reported, report_home_score, report_away_score) values(${id}, ${report_match_reported}, ${report_home_score}, ${report_away_score}) on conflict(match_id) do update set report_match_reported = excluded.report_match_reported, report_home_score = excluded.report_home_score, report_away_score = excluded.report_away_score`)
+			.transacting(trx)
         )
         return Promise.all(players_promises)
-            .then(data => {
-                trx.commit;
-                res.json({data: {}, message: "the match report was successfully updated"});
-            })
-            .catch(err => {
-                console.log(err)
-                res.json({data: err, message: "there was an issue submitting the match report. please try again"});
-            })
+		.then(data => {
+			trx.commit;
+			res.json({data: {}, message: "the match report was successfully updated"});
+		})
+		.catch(err => {
+			console.log(err)
+			res.json({data: err, message: "there was an issue submitting the match report. please try again"});
+		})
     })
 })
 // post login

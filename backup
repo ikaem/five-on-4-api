@@ -429,3 +429,50 @@ const PORT = process.env.PORT? process.env.PORT: 4000;
 app.listen(PORT, () => {
     console.log(`The server is running on port ${PORT}`);
 })
+
+
+
+///////// upsert for reporting match - this is no upsert    db.transaction(trx => {
+        const players_promises = match_players.map(player => {
+            return trx("matches_participation")
+            .update({
+                part_scored: player.part_scored, 
+                part_attended: player.part_attended, 
+                part_home_team: player.part_home_team, 
+                part_away_team: player.part_away_team
+            })
+            .where({
+                match_id: id, 
+                // part signed up not needed most likely
+                part_signed_up: true, 
+                // this is not necessary bc i can easily get userid in the app, but leaving here to remind how subquery in knex
+                user_id: db("logins").where({user_name: player.user_name}).select("user_id")
+            })
+            // .returning("*")
+            // what is transacting for?
+            // apparently, makes ever update be in the same transaction
+            .transacting(trx)
+        })
+        // this way doesnt look right, because it seems out of the transaction really
+        players_promises.push(trx("matches_report")
+            .update({
+                report_match_reported: report_match_reported,
+                report_home_score: report_home_score,
+                report_away_score: report_away_score
+            })
+            .where({
+                match_id: id,
+            })
+            .transacting(trx)
+        )
+        // I had a problem here, prior to fixing to upsert instead of update only - where even though we have transaction, match participation was updated, but match report was not - so commit has no point here. but i did set it up incorrectly... the transaction here - i should probably somehow wrap the business inside transaction
+        return Promise.all(players_promises)
+            .then(data => {
+                trx.commit;
+                res.json({data: {}, message: "the match report was successfully updated"});
+            })
+            .catch(err => {
+                console.log(err)
+                res.json({data: err, message: "there was an issue submitting the match report. please try again"});
+            })
+    })
