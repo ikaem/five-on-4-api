@@ -18,12 +18,6 @@ app.use(express.urlencoded({extended: false}));
 app.use(express.json());
 app.use(cors());
 
-// testing 
-/* const user_password = bcrypt.hashSync("user2", bcrypt.genSaltSync(10))
-console.log(user_password); */
-
-// testing 
-
 // ---- routes ---- //
 // get root route - pg done
 app.get("/", (req, res) => {
@@ -90,10 +84,19 @@ app.get("/detailedmatch/:id", (req, res) => {
         db.raw("(select matches_report.report_match_reported from matches_report where matches_report.match_id = matches.match_id) as match_reported"),
         db.raw("(select matches_report.report_home_score from matches_report where matches_report.match_id = matches.match_id) as match_home_score"),
         db.raw("(select matches_report.report_away_score from matches_report where matches_report.match_id = matches.match_id) as match_away_score"),
-        db.raw("(select coalesce(json_agg(json_build_object('user_id', logins.user_id, 'user_name', logins.user_name))) from logins, matches_participation where matches_participation.part_signed_up = true and logins.user_id = matches_participation.user_id and matches_participation.match_id = matches.match_id) as match_players_signed_up"),
-        db.raw("(select coalesce(json_agg(json_build_object('user_id', logins.user_id, 'user_name', logins.user_name))) from logins, matches_participation where matches_participation.part_attended = true and logins.user_id = matches_participation.user_id and matches_participation.match_id = matches.match_id) as match_players_attended"),
+
+        db.raw("(select coalesce(json_agg(json_build_object('user_id', logins.user_id, 'user_name', logins.user_name)), json_build_array()) from logins, matches_participation where matches_participation.part_signed_up = true and logins.user_id = matches_participation.user_id and matches_participation.match_id = matches.match_id) as match_players_signed_up"),
+
+
+        db.raw("(select coalesce(json_agg(json_build_object('user_id', logins.user_id, 'user_name', logins.user_name)), json_build_array()) from logins, matches_participation where matches_participation.part_attended = true and logins.user_id = matches_participation.user_id and matches_participation.match_id = matches.match_id) as match_players_attended"),
+
+
         db.raw("(select coalesce(json_agg(json_build_object('user_id', logins.user_id, 'user_name', logins.user_name, 'user_goals', matches_participation.part_scored)), json_build_array()) from logins, matches_participation where matches_participation.part_scored > 0 and logins.user_id = matches_participation.user_id and matches_participation.match_id = matches.match_id) as match_scorers"),
+
+
         db.raw("(select coalesce(json_agg(json_build_object('user_id', logins.user_id, 'user_name', logins.user_name)), json_build_array())from logins, matches_participation where matches_participation.user_id = logins.user_id and matches_participation.part_home_team = true and matches_participation.match_id = matches.match_id) as match_home_team"),
+
+
         db.raw("(select coalesce(json_agg(json_build_object('user_id', logins.user_id, 'user_name', logins.user_name)), json_build_array()) from logins, matches_participation where matches_participation.user_id = logins.user_id and matches_participation.part_away_team = true and matches_participation.match_id = matches.match_id) as match_away_team"),
     )
     .from("matches")
@@ -280,38 +283,8 @@ app.post("/login", (req, res) => {
         .then(db_user => {
             bcrypt.compare(password, db_user.user_password, (err, bcrypt_res) => {
                 if(bcrypt_res){
-                    return res.json({
-                        data: (({
-                            user_id,
-                            user_name,
-                            user_email,
-                            user_created,
-                            user_signed_up_matches,
-                            user_attended_matches,
-                            user_in_home_team,
-                            user_in_away_team,
-                            user_matches_won_as_home,
-                            user_matches_won_as_away,
-                            user_matches_lost_as_home,
-                            user_matches_lost_as_away,
-                            user_scored_in_matches
-                        }) => ({
-                            user_id,
-                            user_name,
-                            user_email,
-                            user_created,
-                            user_signed_up_matches,
-                            user_attended_matches,
-                            user_in_home_team,
-                            user_in_away_team,
-                            user_matches_won_as_home,
-                            user_matches_won_as_away,
-                            user_matches_lost_as_home,
-                            user_matches_lost_as_away,
-                            user_scored_in_matches
-                        }))(db_user), 
-                        message: "user logged in successfully"
-                    })
+                    const {user_password, ...logged_user} = db_user;
+                    return res.json({data: logged_user, message: "user logged in successfully"})                
                 }
                 res.json({data: {}, message: "incorrect credentials combination / or maybe no such user"})
             })
@@ -335,11 +308,42 @@ app.post("/register", (req, res) => {
         // using sync bcrypt bc i dont want to nest it and chain it with then while waiting for promise to fulfill. and i am not sure how to do it elegantly... 
         user_password: bcrypt.hashSync(password, bcrypt.genSaltSync(10))
     })
+
     // genius internet. i think i need to use this array in few other places to avoid more code generating needed object
-    .returning(["user_id", "user_name", "user_email"])
-    .then(data => data[0])
-    .then(registered_user => {
-        res.json({data: registered_user, message: "new user successfully registered"})
+    .returning("user_email")
+    // .returning("*")
+    .then(data => {
+        console.log(data);
+        console.log("karlo")
+        return data[0]
+    })
+    .then(registered_user_email => {
+
+        db.select(
+            "user_id",
+            "user_name",
+            "user_email",
+            "user_created",
+            db.raw("(select coalesce(json_agg(json_build_object('match_id', matches_participation.match_id, 'match_name', matches.match_name, 'match_date', matches.match_date_start)), json_build_array()) from matches_participation, matches where matches_participation.part_signed_up = true and matches_participation.user_id = logins.user_id and matches.match_id = matches_participation.match_id) as user_signed_up_matches"),
+            db.raw("(select coalesce(json_agg(json_build_object('match_id', matches_participation.match_id, 'match_name', matches.match_name, 'match_date', matches.match_date_start)), json_build_array()) from matches_participation, matches where matches_participation.part_attended = true and matches_participation.user_id = logins.user_id and matches.match_id = matches_participation.match_id) as user_attended_matches"),
+            db.raw("(select coalesce(json_agg(json_build_object('match_id', matches_participation.match_id, 'match_name', matches.match_name, 'match_date', matches.match_date_start)), json_build_array()) from matches_participation, matches where matches_participation.part_home_team = true and matches_participation.user_id = logins.user_id and matches.match_id = matches_participation.match_id) as user_in_home_team"),
+            db.raw("(select coalesce(json_agg(json_build_object('match_id', matches_participation.match_id, 'match_name', matches.match_name, 'match_date', matches.match_date_start)), json_build_array()) from matches_participation, matches where matches_participation.part_away_team = true and matches_participation.user_id = logins.user_id and matches.match_id = matches_participation.match_id) as user_in_away_team"),
+            db.raw("(select coalesce(json_agg(json_build_object('match_id', matches_participation.match_id, 'match_name', matches.match_name, 'match_date', matches.match_date_start)), json_build_array()) from matches_participation join  matches_report on matches_participation.part_attended = true and  matches_participation.part_home_team = true and matches_participation.user_id = logins.user_id and matches_report.match_id = matches_participation.match_id and matches_report.report_home_score > matches_report.report_away_score join matches on matches.match_id = matches_participation.match_id) as user_matches_won_as_home"),
+            db.raw("(select coalesce(json_agg(json_build_object('match_id', matches_participation.match_id, 'match_name', matches.match_name, 'match_date', matches.match_date_start)), json_build_array()) from matches_participation join  matches_report on matches_participation.part_attended = true and  matches_participation.part_away_team = true and matches_participation.user_id = logins.user_id and matches_report.match_id = matches_participation.match_id and matches_report.report_home_score < matches_report.report_away_score join matches on matches.match_id = matches_participation.match_id) as user_matches_won_as_away"),
+            db.raw("(select coalesce(json_agg(json_build_object('match_id', matches_participation.match_id, 'match_name', matches.match_name, 'match_date', matches.match_date_start)), json_build_array()) from matches_participation join matches_report on matches_participation.part_attended = true and matches_participation.part_home_team = true and matches_participation.user_id = logins.user_id and matches_report.match_id = matches_participation.match_id and matches_report.report_home_score < matches_report.report_away_score join matches on matches.match_id = matches_participation.match_id) as user_matches_lost_as_home"),
+            db.raw("(select coalesce(json_agg(json_build_object('match_id', matches_participation.match_id, 'match_name', matches.match_name, 'match_date', matches.match_date_start)), json_build_array()) from matches_participation join matches_report on matches_participation.part_attended = true and matches_participation.part_away_team = true and matches_participation.user_id = logins.user_id and matches_report.match_id = matches_participation.match_id and matches_report.report_home_score > matches_report.report_away_score join matches on matches.match_id = matches_participation.match_id) as user_matches_lost_as_away"),
+            db.raw("(select coalesce(json_agg(json_build_object('match_id', matches_participation.match_id, 'match_name', matches.match_name, 'match_date', matches.match_date_start, 'match_goals_scored', matches_participation.part_scored)), json_build_array()) from matches_participation, matches where matches_participation.user_id = logins.user_id and matches_participation.part_attended = true and matches_participation.part_scored > 0 and matches.match_id = matches_participation.match_id) as user_scored_in_matches")
+        )
+        .from("logins")
+        .where({["logins.user_email"]: registered_user_email})
+        .then(data => data[0])
+        .then(db_user => {
+            const {user_password, ...logged_user} = db_user;
+            res.json({data: logged_user, message: "new user successfully registered"})                
+        })
+        .catch(err => {
+            res.status(500).json({data: err, message: "there was an error retrieving user information from database"})
+        })
     })
     .catch(err => {
         if(err.code === "23505"){
