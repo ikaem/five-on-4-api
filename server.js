@@ -10,6 +10,14 @@ const knex = require("knex")({
         connectionString: process.env.DATABASE_URL,
         ssl: true}})
 
+// const knex = require("knex")(
+//     {client: "pg",
+//         connection: {
+//             host: "127.0.0.1",
+//             user: "postgres",
+//             password: "anVvPRpp",
+//             database: "fiveon4",}})
+
 
 
 
@@ -168,12 +176,16 @@ app.put("/updatematch/:id", (req, res) => {
 })
 // get for update match
 app.get("/forupdatematch/:id", (req, res) => {
+    console.log("here, it arrived!!!!!")
+
     const {id} = req.params;
     db("matches")
     .select("match_id", "match_name", "match_venue", "match_date_start", "match_date_end")
     .where("match_id", id)
     .then(for_update_match => {
         if(for_update_match[0].match_id){
+            console.log("arrived again")
+            console.log(for_update_match[0])
             res.json({data: for_update_match[0], message: "match for update retrieved successfully"});
         }
         else{
