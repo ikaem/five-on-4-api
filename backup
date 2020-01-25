@@ -4,17 +4,13 @@ const cors = require("cors");
 const fetch = require("node-fetch");
 const bcrypt = require("bcryptjs");
 require("dotenv").config();
-const knex = require("knex")({
-    client: "pg",
-    connection: {
-        connectionString: process.env.DATABASE_URL,
-        ssl: true}})
-
-
-
-
-
-
+const knex = require("knex")(
+    {client: "pg",
+        connection: {
+            host: "127.0.0.1",
+            user: "postgres",
+            password: "anVvPRpp",
+            database: "fiveon4",}})
 const db = knex;
 const app = express();
 const api_key = process.env.API_KEY;
